@@ -138,6 +138,9 @@ class NotificationSettings(BaseModel):
     notify_on_weekly_report: Optional[bool] = None
 
 
+_DARK_MODE_UNSET = "UNSET"
+
+
 class UserUpdateRequest(BaseModel):
     email: Optional[str] = None
     encryption_password: Optional[str] = None
@@ -145,6 +148,7 @@ class UserUpdateRequest(BaseModel):
     notifications: Optional[NotificationSettings] = None
     reset_password: Optional[bool] = False
     verify_password: Optional[bool] = False
+    dark_mode: Optional[bool | str] = _DARK_MODE_UNSET
 
 
 class TranscriptionJobUpdateRequest(BaseModel):

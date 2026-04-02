@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import List, Optional
 from uuid import uuid4
@@ -191,7 +191,7 @@ class JobResult(SQLModel, table=True):
         description="SRT formatted transcription result",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         description="Creation timestamp",
     )
     external_id: str = Field(
@@ -271,16 +271,16 @@ class Job(SQLModel, table=True):
         description="Type of the job",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         description="Creation timestamp",
     )
     updated_at: datetime = Field(
-        sa_column_kwargs={"onupdate": datetime.utcnow},
-        default_factory=datetime.utcnow,
+        sa_column_kwargs={"onupdate": lambda: datetime.now(UTC)},
+        default_factory=lambda: datetime.now(UTC),
         description="Last updated timestamp",
     )
     deletion_date: datetime = Field(
-        default_factory=lambda: datetime.utcnow() + timedelta(days=7),
+        default_factory=lambda: datetime.now(UTC) + timedelta(days=7),
         description="Date when the job will be deleted",
     )
     language: str = Field(default="Swedish", description="Language used for the job")
@@ -397,7 +397,7 @@ class User(SQLModel, table=True):
         description="Transcribed seconds",
     )
     last_login: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         description="Last login timestamp",
     )
     active: bool = Field(
@@ -439,6 +439,10 @@ class User(SQLModel, table=True):
         default=False,
         description="Indicates if the user was manually activated by an admin, preventing rules from deactivating",
     )
+    dark_mode: Optional[bool] = Field(
+        default=None,
+        description="User's dark mode preference: True=on, False=off, None=auto",
+    )
 
     def as_dict(self) -> dict:
         """
@@ -466,6 +470,7 @@ class User(SQLModel, table=True):
             "transcribed_seconds": self.transcribed_seconds,
             "user_id": self.user_id,
             "username": self.username,
+            "dark_mode": self.dark_mode,
         }
 
 
@@ -637,7 +642,7 @@ class Customer(SQLModel, table=True):
         description="Additional notes about the customer",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         description="Creation timestamp",
     )
     blocks_purchased: Optional[int] = Field(
@@ -689,7 +694,7 @@ class NotificationsSent(SQLModel, table=True):
         description="Type of notification sent",
     )
     sent_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         description="Timestamp when the notification was sent",
     )
     uuid: str = Field(
@@ -728,7 +733,7 @@ class PageView(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True, description="Primary key")
     path: str = Field(index=True, description="Page path that was visited")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         index=True,
         description="Timestamp of the page view",
     )
@@ -767,7 +772,7 @@ class AttributeRule(SQLModel, table=True):
     )
     attribute_value: str = Field(description="Value to compare against")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Creation timestamp"
     )
     enabled: bool = Field(
         default=True, description="Whether this rule is currently active"
@@ -881,7 +886,7 @@ class Announcement(SQLModel, table=True):
         description="Whether this announcement is currently active",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         description="Creation timestamp",
     )
     created_by: Optional[str] = Field(
@@ -915,6 +920,6 @@ class WorkerHealth(SQLModel, table=True):
     memory_usage: float = Field(default=0, description="Memory usage")
     gpu_usage: Optional[str] = Field(default=None, description="GPU usage as JSON")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC),
         description="Timestamp when the health entry was recorded",
     )

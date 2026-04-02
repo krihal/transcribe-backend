@@ -20,3 +20,33 @@ from pathlib import Path
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
+import pytest
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _cleanup_db_engines():
+    """Dispose SQLAlchemy engines after the test session to avoid hangs."""
+    yield
+
+    from db import session as session_mod
+
+    # Dispose the cached sync engine (created by @lru_cache get_sessionmaker)
+    if session_mod.get_sessionmaker.cache_info().currsize:
+        factory = session_mod.get_sessionmaker()
+        engine = factory.kw.get("bind")
+        if engine is not None:
+            engine.dispose()
+        session_mod.get_sessionmaker.cache_clear()
+
+    # Dispose the async engine singleton
+    if session_mod._async_sessionmaker_instance is not None:
+        import asyncio
+
+        engine = session_mod._async_sessionmaker_instance.kw.get("bind")
+        if engine is not None:
+            asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
+                engine.dispose()
+            )
+        session_mod._async_sessionmaker_instance = None

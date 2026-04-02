@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import case, func, select
 from db.models import PageView
@@ -13,7 +13,7 @@ async def log_page_view(path: str) -> None:
 
 async def get_page_views(days: int = 30) -> list[dict]:
     """Page views grouped by path + day for the last N days."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     async with get_async_session() as session:
         stmt = (
             select(
@@ -32,7 +32,7 @@ async def get_page_views(days: int = 30) -> list[dict]:
 
 async def get_page_views_summary() -> list[dict]:
     """Total views per page: all time and last 30 days."""
-    cutoff = datetime.utcnow() - timedelta(days=30)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
     async with get_async_session() as session:
         stmt = (
             select(
@@ -55,7 +55,7 @@ async def get_page_views_summary() -> list[dict]:
 
 async def get_views_per_day(days: int = 30) -> list[dict]:
     """Total views per day for the last N days."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     async with get_async_session() as session:
         stmt = (
             select(
@@ -86,7 +86,7 @@ async def get_recent_views(limit: int = 50) -> list[dict]:
 
 async def get_hourly_heatmap(days: int = 30) -> list[dict]:
     """Views grouped by day-of-week and hour-of-day for a heatmap."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     async with get_async_session() as session:
         stmt = (
             select(
@@ -107,7 +107,7 @@ async def get_hourly_heatmap(days: int = 30) -> list[dict]:
 
 async def get_hourly_distribution(days: int = 30) -> list[dict]:
     """Total views per hour-of-day."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     async with get_async_session() as session:
         stmt = (
             select(
@@ -125,7 +125,7 @@ async def get_hourly_distribution(days: int = 30) -> list[dict]:
 
 async def get_week_over_week() -> dict:
     """Compare this week's views vs last week's."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     this_week_start = now - timedelta(days=now.weekday())
     this_week_start = this_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
     last_week_start = this_week_start - timedelta(days=7)
@@ -162,7 +162,7 @@ async def get_week_over_week() -> dict:
 
 async def get_total_stats() -> dict:
     """Aggregate stats for summary cards."""
-    cutoff = datetime.utcnow() - timedelta(days=30)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
     async with get_async_session() as session:
         total_views = (
             await session.execute(select(func.count(PageView.id)))

@@ -17,7 +17,7 @@
 
 import calendar
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Optional
 
 from auth.client import dn_in_list
@@ -84,7 +84,7 @@ async def user_create(
                     f"User {user.user_id} was previously deleted, resetting deleted flag."
                 )
 
-            user.last_login = datetime.utcnow()
+            user.last_login = datetime.now(UTC)
             result = user.as_dict()
             result["created"] = False
 
@@ -95,7 +95,7 @@ async def user_create(
             realm=realm,
             user_id=user_id,
             transcribed_seconds=0,
-            last_login=datetime.utcnow(),
+            last_login=datetime.now(UTC),
             email=email,
         )
 
@@ -447,6 +447,7 @@ async def user_update(
     notifications_str: Optional[str] = None,
     email: Optional[str] = None,
     reset_manual: Optional[bool] = False,
+    dark_mode: Optional[bool] = None,
 ) -> dict:
     """
     Update a user in the database.
@@ -476,7 +477,7 @@ async def user_update(
         if not user:
             return {}
 
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(UTC)
 
         if transcribed_seconds:
             user.transcribed_seconds += float(transcribed_seconds)
@@ -570,6 +571,9 @@ async def user_update(
                 f"Updating notifications for user {user.user_id} to {notifications_str}"
             )
             user.notifications = notifications_str
+
+        if dark_mode is not None:
+            user.dark_mode = dark_mode
 
         log.info(
             f"User {user.user_id} updated: "
@@ -723,7 +727,7 @@ async def users_statistics(
 
         job_queue = []
 
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         last_day = calendar.monthrange(today.year, today.month)[1]
         last_date_string = f"{today.year}-{today.month:02d}-{last_day}"
         last_date = datetime.fromisoformat(last_date_string).date()

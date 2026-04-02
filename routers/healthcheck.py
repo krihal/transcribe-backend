@@ -81,11 +81,11 @@ async def get_healthcheck(
     return JSONResponse(content={"result": data})
 
 
-@router.get("/status")
+@router.get("/status", include_in_schema=False)
 async def get_status() -> JSONResponse:
     """
-    Public status endpoint to check if backend, database, and workers are working.
-    No authentication required - intended for monitoring tools.
+    Status endpoint to check if backend, database, and workers are working.
+    Not exposed in API documentation.
 
     Returns:
         JSONResponse: Status of backend, database, and worker connectivity.

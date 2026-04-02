@@ -97,7 +97,6 @@ async def rule_get_all(realm: Optional[str | list[str]] = None) -> list[dict]:
     result = []
     for r in all_rules:
         if not r.get("realm"):
-            result.append(r)
             continue
         rule_realms = {x.strip() for x in r["realm"].split(",") if x.strip()}
         if rule_realms & allowed:

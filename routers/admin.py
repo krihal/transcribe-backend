@@ -55,6 +55,29 @@ router = APIRouter(tags=["admin"])
 settings = get_settings()
 
 
+def _get_admin_allowed_realms(admin_user: dict) -> list[str]:
+    """
+    Return the list of realms a non-BOFH admin may manage.
+
+    Parameters:
+        admin_user (dict): The admin user dict.
+
+    Returns:
+        list[str]: The list of allowed realms.
+    """
+
+    realms = set()
+
+    if admin_user.get("realm"):
+        realms.add(admin_user["realm"])
+
+    for d in (admin_user.get("admin_domains") or "").split(","):
+        d = d.strip()
+        if d:
+            realms.add(d)
+    return sorted(realms)
+
+
 @router.get("/admin")
 async def statistics(
     request: Request,

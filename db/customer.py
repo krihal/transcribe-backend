@@ -18,7 +18,7 @@
 import csv
 import io
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import or_, select
 
@@ -378,7 +378,7 @@ async def customer_get_statistics(customer_id: int) -> dict:
         total_files_current = 0
         total_files_last = 0
 
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         first_day_this_month = today.replace(day=1)
         last_day_prev_month = first_day_this_month - timedelta(days=1)
         first_day_prev_month = last_day_prev_month.replace(day=1)
@@ -745,7 +745,7 @@ def _customer_get_statistics_sync(customer_id: int) -> dict:
         total_files_current = 0
         total_files_last = 0
 
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         first_day_this_month = today.replace(day=1)
         last_day_prev_month = first_day_this_month - timedelta(days=1)
         first_day_prev_month = last_day_prev_month.replace(day=1)

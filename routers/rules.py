@@ -82,7 +82,7 @@ def _rule_realm_overlaps(rule_realm: str | None, allowed: list[str]) -> bool:
     """
 
     if not rule_realm:
-        return True
+        return False
 
     rule_realms = {r.strip() for r in rule_realm.split(",") if r.strip()}
 
