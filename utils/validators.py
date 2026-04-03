@@ -102,6 +102,8 @@ class CreateAttributeRuleRequest(BaseModel):
     admin: bool = False
     deny: bool = False
     assign_to_group: Optional[str] = None
+    notify_job: bool = False
+    notify_deletion: bool = False
     owner_domains: Optional[str] = None
     enabled: bool = True
 
@@ -116,6 +118,8 @@ class UpdateAttributeRuleRequest(BaseModel):
     admin: Optional[bool] = None
     deny: Optional[bool] = None
     assign_to_group: Optional[str] = None
+    notify_job: Optional[bool] = None
+    notify_deletion: Optional[bool] = None
     owner_domains: Optional[str] = None
     enabled: Optional[bool] = None
 

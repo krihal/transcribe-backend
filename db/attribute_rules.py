@@ -39,6 +39,8 @@ async def rule_create(
     admin: bool = False,
     deny: bool = False,
     assign_to_group: Optional[str] = None,
+    notify_job: bool = False,
+    notify_deletion: bool = False,
     owner_domains: Optional[str] = None,
     enabled: bool = True,
     user_id: Optional[str] = None,
@@ -56,6 +58,8 @@ async def rule_create(
             admin=admin,
             deny=deny,
             assign_to_group=assign_to_group,
+            notify_job=notify_job,
+            notify_deletion=notify_deletion,
             owner_domains=owner_domains,
             enabled=enabled,
         )
@@ -115,6 +119,8 @@ async def rule_update(
     admin: Optional[bool] = None,
     deny: Optional[bool] = None,
     assign_to_group: Optional[str] = None,
+    notify_job: Optional[bool] = None,
+    notify_deletion: Optional[bool] = None,
     owner_domains: Optional[str] = None,
     enabled: Optional[bool] = None,
     user_id: Optional[str] = None,
@@ -149,6 +155,10 @@ async def rule_update(
             rule.deny = deny
         if assign_to_group is not None:
             rule.assign_to_group = assign_to_group
+        if notify_job is not None:
+            rule.notify_job = notify_job
+        if notify_deletion is not None:
+            rule.notify_deletion = notify_deletion
         if owner_domains is not None:
             rule.owner_domains = owner_domains
         if enabled is not None:
@@ -322,6 +332,14 @@ async def evaluate_rules(decoded_jwt: dict, user: dict) -> dict:
                     f"Ignoring group assignment rule '{rule.name}' for user {user_id}: manually activated."
                 )
 
+            if rule.notify_job:
+                actions["notify_job"] = True
+                rule_actions.append("enable job notifications")
+
+            if rule.notify_deletion:
+                actions["notify_deletion"] = True
+                rule_actions.append("enable deletion notifications")
+
             log.info(
                 f"Rule '{rule.name}' matched for user {user_id}: "
                 f"{rule.attribute_name} {rule.attribute_condition.value} "
@@ -409,6 +427,32 @@ async def apply_rule_actions(actions: dict, user: dict) -> None:
                 log.warning(
                     f"Could not assign user {user_id} to group {group_id}."
                 )
+
+    # Notification preferences
+    notify_types = []
+    if actions.get("notify_job"):
+        notify_types.append("job")
+    if actions.get("notify_deletion"):
+        notify_types.append("deletion")
+
+    if notify_types:
+        async with get_async_session() as session:
+            result = await session.execute(
+                select(User).where(User.user_id == user_id).with_for_update()
+            )
+            db_user_notify = result.scalars().first()
+            if db_user_notify:
+                current = set(
+                    (db_user_notify.notifications or "").split(",")
+                )
+                current.discard("")
+                for nt in notify_types:
+                    if nt not in current:
+                        current.add(nt)
+                        log.info(
+                            f"Auto-enabling '{nt}' notification for user {user_id} via attribute rule."
+                        )
+                db_user_notify.notifications = ",".join(sorted(current))
 
 
 def _user_to_pseudo_jwt(user: User) -> dict:

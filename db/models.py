@@ -795,6 +795,14 @@ class AttributeRule(SQLModel, table=True):
         default=None,
         description="Group ID to assign matching users to",
     )
+    notify_job: bool = Field(
+        default=False,
+        description="Enable transcription completed notifications for matching users",
+    )
+    notify_deletion: bool = Field(
+        default=False,
+        description="Enable upcoming file deletion notifications for matching users",
+    )
     # Scope
     realm: Optional[str] = Field(
         default=None, index=True, description="Realm this rule applies to"
@@ -819,6 +827,8 @@ class AttributeRule(SQLModel, table=True):
             "admin": self.admin,
             "deny": self.deny,
             "assign_to_group": self.assign_to_group,
+            "notify_job": self.notify_job,
+            "notify_deletion": self.notify_deletion,
             "realm": self.realm,
             "owner_domains": self.owner_domains,
         }

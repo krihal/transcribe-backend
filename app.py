@@ -26,7 +26,11 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi_utils.tasks import repeat_every
+from starlette.formparsers import MultiPartParser
 from starlette.middleware.sessions import SessionMiddleware
+
+# Allow uploads up to 4 GB (must be set before app startup)
+MultiPartParser.spool_max_size = 1024 * 1024 * 4096
 
 from auth.oidc import RefreshToken, oauth, verify_token, verify_user
 from db.analytics import log_page_view

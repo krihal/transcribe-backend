@@ -346,7 +346,7 @@ async def job_remove(uuid: str) -> bool:
             log.info(
                 f"Job result for job {result.job_id} created at {result.created_at} removed for user {result.user_id}."
             )
-            session.delete(result)
+            await session.delete(result)
 
     return True
 
