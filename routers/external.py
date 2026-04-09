@@ -81,7 +81,7 @@ async def get_job_external(
         )
 
     if not (job_result := await job_result_get_external(external_id)):
-        logger.error(f"External job result not found: {external_id}")
+        logger.warning(f"External job result not found: {external_id}")
         return JSONResponse(
             content={
                 "result": res
