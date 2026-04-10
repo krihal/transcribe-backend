@@ -197,7 +197,7 @@ async def verify_user(request: Request, admin: Optional[bool] = False) -> str:
 
     # Check if the user is active
     if not user["active"]:
-        log.error(f"User {user_id} is not active.")
+        log.info(f"User {user_id} is not active.")
         raise HTTPException(status_code=403, detail="User is not active.")
 
     if admin and not user["admin"]:
