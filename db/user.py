@@ -84,7 +84,7 @@ async def user_create(
                     f"User {user.user_id} was previously deleted, resetting deleted flag."
                 )
 
-            user.last_login = datetime.now(UTC)
+            user.last_login = datetime.now(UTC).replace(tzinfo=None)
             result = user.as_dict()
             result["created"] = False
 
@@ -95,7 +95,7 @@ async def user_create(
             realm=realm,
             user_id=user_id,
             transcribed_seconds=0,
-            last_login=datetime.now(UTC),
+            last_login=datetime.now(UTC).replace(tzinfo=None),
             email=email,
         )
 
@@ -477,7 +477,7 @@ async def user_update(
         if not user:
             return {}
 
-        user.last_login = datetime.now(UTC)
+        user.last_login = datetime.now(UTC).replace(tzinfo=None)
 
         if transcribed_seconds:
             user.transcribed_seconds += float(transcribed_seconds)
