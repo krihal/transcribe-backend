@@ -447,7 +447,7 @@ async def user_update(
     notifications_str: Optional[str] = None,
     email: Optional[str] = None,
     reset_manual: Optional[bool] = False,
-    dark_mode: Optional[bool] = None,
+    dark_mode: Optional[str] = None,
 ) -> dict:
     """
     Update a user in the database.

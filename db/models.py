@@ -21,7 +21,7 @@ from typing import List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel
-from sqlalchemy import Index
+from sqlalchemy import Column, Index
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -357,6 +357,16 @@ class GroupUserLink(SQLModel, table=True):
     )
 
 
+class DarkModeEnum(str, Enum):
+    """
+    Enum representing the user's theme preference.
+    """
+
+    DARK = "dark"
+    LIGHT = "light"
+    AUTO = "auto"
+
+
 class User(SQLModel, table=True):
     """
     Model representing a user in the system.
@@ -439,9 +449,20 @@ class User(SQLModel, table=True):
         default=False,
         description="Indicates if the user was manually activated by an admin, preventing rules from deactivating",
     )
-    dark_mode: Optional[bool] = Field(
-        default=None,
-        description="User's dark mode preference: True=on, False=off, None=auto",
+    dark_mode: DarkModeEnum = Field(
+        default=DarkModeEnum.AUTO,
+        sa_column=Column(
+            "dark_mode",
+            SQLAlchemyEnum(
+                DarkModeEnum,
+                name="darkmodeenum",
+                values_callable=lambda x: [e.value for e in x],
+                create_type=False,
+            ),
+            nullable=False,
+            server_default="auto",
+        ),
+        description="User's theme preference: dark, light, or auto",
     )
 
     def as_dict(self) -> dict:

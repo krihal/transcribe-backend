@@ -128,7 +128,7 @@ async def set_user_info(
             notifications_str += "weekly_report,"
 
         await user_update(user["user_id"], notifications_str=notifications_str)
-    elif item.dark_mode != "UNSET":
+    elif "dark_mode" in item.model_fields_set:
         await user_update(user["user_id"], dark_mode=item.dark_mode)
 
     return JSONResponse(content={"result": {"status": "OK"}})

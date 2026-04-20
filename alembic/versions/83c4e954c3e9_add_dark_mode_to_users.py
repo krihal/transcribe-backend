@@ -38,21 +38,47 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _ensure_dark_mode_enum(bind: sa.engine.Connection) -> sa.Enum:
+    """Create the dark_mode enum type if it doesn't already exist."""
+    dark_mode_enum = sa.Enum(
+        "dark",
+        "light",
+        "auto",
+        name="darkmodeenum",
+        create_type=False,
+    )
+
+    # SQLite doesn't have native enum types — nothing to create
+    if bind.dialect.name == "sqlite":
+        return dark_mode_enum
+
+    result = bind.execute(
+        sa.text("SELECT 1 FROM pg_type WHERE typname = 'darkmodeenum'")
+    )
+
+    if not result.scalar():
+        dark_mode_enum.create(bind)
+
+    return dark_mode_enum
+
+
 def upgrade() -> None:
     """Upgrade schema."""
 
-    engine = op.get_bind()
-    inspector = inspect(engine)
+    bind = op.get_bind()
+    inspector = inspect(bind)
     columns = [x["name"] for x in inspector.get_columns("users")]
 
     if "dark_mode" not in columns:
+        dark_mode_enum = _ensure_dark_mode_enum(bind)
+
         op.add_column(
             "users",
             sa.Column(
                 "dark_mode",
-                sa.Boolean(),
-                nullable=True,
-                server_default=sa.null(),
+                dark_mode_enum,
+                nullable=False,
+                server_default="auto",
             ),
         )
 
@@ -60,9 +86,12 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
 
-    engine = op.get_bind()
-    inspector = inspect(engine)
+    bind = op.get_bind()
+    inspector = inspect(bind)
     columns = [x["name"] for x in inspector.get_columns("users")]
 
     if "dark_mode" in columns:
         op.drop_column("users", "dark_mode")
+
+    dark_mode_enum = sa.Enum(name="darkmodeenum")
+    dark_mode_enum.drop(bind, checkfirst=True)
