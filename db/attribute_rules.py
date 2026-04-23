@@ -332,13 +332,21 @@ async def evaluate_rules(decoded_jwt: dict, user: dict) -> dict:
                     f"Ignoring group assignment rule '{rule.name}' for user {user_id}: manually activated."
                 )
 
-            if rule.notify_job:
+            if rule.notify_job and not manually_activated:
                 actions["notify_job"] = True
                 rule_actions.append("enable job notifications")
+            elif rule.notify_job and manually_activated:
+                log.info(
+                    f"Ignoring notify_job rule '{rule.name}' for user {user_id}: manually activated."
+                )
 
-            if rule.notify_deletion:
+            if rule.notify_deletion and not manually_activated:
                 actions["notify_deletion"] = True
                 rule_actions.append("enable deletion notifications")
+            elif rule.notify_deletion and manually_activated:
+                log.info(
+                    f"Ignoring notify_deletion rule '{rule.name}' for user {user_id}: manually activated."
+                )
 
             log.info(
                 f"Rule '{rule.name}' matched for user {user_id}: "

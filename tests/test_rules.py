@@ -101,7 +101,8 @@ async def _make_user(session, *, username="student@example.com", realm="example.
 async def _make_rule(session, *, name="test-rule", attribute_name="affiliation",
                      condition=AttributeConditionEnum.EQUALS, attribute_value="student",
                      realm=None, activate=False, admin=False, deny=False,
-                     assign_to_group=None, enabled=True) -> AttributeRule:
+                     assign_to_group=None, notify_job=False, notify_deletion=False,
+                     enabled=True) -> AttributeRule:
     """Helper to create and persist an AttributeRule."""
     rule = AttributeRule(
         name=name,
@@ -113,6 +114,8 @@ async def _make_rule(session, *, name="test-rule", attribute_name="affiliation",
         admin=admin,
         deny=deny,
         assign_to_group=assign_to_group,
+        notify_job=notify_job,
+        notify_deletion=notify_deletion,
         enabled=enabled,
     )
     session.add(rule)
@@ -311,6 +314,19 @@ class TestManualOverride:
         actions = await evaluate_rules(jwt, user.as_dict())
 
         assert actions["group"] is None
+
+    @pytest.mark.asyncio
+    async def test_manually_activated_skips_notify(self, _patch_session):
+        """A manually activated user should NOT have notify_job/notify_deletion auto-applied."""
+        session = _patch_session
+        user = await _make_user(session, active=True, manually_activated=True)
+        await _make_rule(session, notify_job=True, notify_deletion=True)
+
+        jwt = {"affiliation": "student", "preferred_username": "student@example.com"}
+        actions = await evaluate_rules(jwt, user.as_dict())
+
+        assert "notify_job" not in actions
+        assert "notify_deletion" not in actions
 
     @pytest.mark.asyncio
     async def test_manually_activated_deny_and_group_combined(self, _patch_session):
