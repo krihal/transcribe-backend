@@ -4,7 +4,13 @@ Copyright (c) 2025-2026 Vetenskapsrådet / Sunet
 
 This component is part of Sunet Scribe.
 
-Third-party software used by this component includes:
+Third-party Notices:
+
+All third-party software and models remain the property of their
+respective copyright holders and are licensed under their own
+license terms.
+
+Third party frameworks and software used by this component includes:
 
 FastAPI
 Copyright (c) 2018 Sebastián Ramírez
