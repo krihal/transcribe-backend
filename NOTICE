@@ -1,0 +1,13 @@
+Sunet Scribe Backend
+
+Copyright (c) 2025-2026 Vetenskapsrådet / Sunet
+
+This component is part of Sunet Scribe.
+
+Third-party software used by this component includes:
+
+FastAPI
+Copyright (c) 2018 Sebastián Ramírez
+Licensed under the MIT License
+
+https://github.com/fastapi/fastapi
