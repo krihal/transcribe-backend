@@ -82,7 +82,7 @@ async def _patch_session(db_session):
 
 async def _make_user(session, *, username="student@example.com", realm="example.com",
                      user_id="uid-1", active=False, manually_deactivated=False,
-                     manually_activated=False) -> User:
+                     manually_activated=False, manually_set_notifications=False) -> User:
     """Helper to create and persist a User."""
     user = User(
         username=username,
@@ -91,6 +91,7 @@ async def _make_user(session, *, username="student@example.com", realm="example.
         active=active,
         manually_deactivated=manually_deactivated,
         manually_activated=manually_activated,
+        manually_set_notifications=manually_set_notifications,
         transcribed_seconds=0,
     )
     session.add(user)
@@ -320,6 +321,19 @@ class TestManualOverride:
         """A manually activated user should NOT have notify_job/notify_deletion auto-applied."""
         session = _patch_session
         user = await _make_user(session, active=True, manually_activated=True)
+        await _make_rule(session, notify_job=True, notify_deletion=True)
+
+        jwt = {"affiliation": "student", "preferred_username": "student@example.com"}
+        actions = await evaluate_rules(jwt, user.as_dict())
+
+        assert "notify_job" not in actions
+        assert "notify_deletion" not in actions
+
+    @pytest.mark.asyncio
+    async def test_manually_set_notifications_skips_notify(self, _patch_session):
+        """A user who manually set notification preferences should not have rules re-apply them."""
+        session = _patch_session
+        user = await _make_user(session, active=True, manually_set_notifications=True)
         await _make_rule(session, notify_job=True, notify_deletion=True)
 
         jwt = {"affiliation": "student", "preferred_username": "student@example.com"}

@@ -486,6 +486,7 @@ async def user_update(
             log.info(f"Resetting manual override flags for user {user.user_id}")
             user.manually_activated = False
             user.manually_deactivated = False
+            user.manually_set_notifications = False
 
         if active is not None:
             log.info(f"Setting user {user.user_id} active status to {active}")
@@ -575,6 +576,7 @@ async def user_update(
                 f"Updating notifications for user {user.user_id} to {notifications_str}"
             )
             user.notifications = notifications_str
+            user.manually_set_notifications = True
 
         if dark_mode is not None:
             user.dark_mode = dark_mode
