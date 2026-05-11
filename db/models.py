@@ -449,6 +449,10 @@ class User(SQLModel, table=True):
         default=False,
         description="Indicates if the user was manually activated by an admin, preventing rules from deactivating",
     )
+    manually_set_notifications: bool = Field(
+        default=False,
+        description="Indicates if the user manually changed their notification preferences, preventing rules from re-applying notification settings",
+    )
     dark_mode: DarkModeEnum = Field(
         default=DarkModeEnum.AUTO,
         sa_column=Column(
@@ -484,6 +488,7 @@ class User(SQLModel, table=True):
             "deleted": self.deleted,
             "manually_activated": self.manually_activated,
             "manually_deactivated": self.manually_deactivated,
+            "manually_set_notifications": self.manually_set_notifications,
             "notifications": self.notifications,
             "private_key": self.private_key,
             "public_key": self.public_key,
