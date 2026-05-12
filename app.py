@@ -29,9 +29,6 @@ from fastapi_utils.tasks import repeat_every
 from starlette.formparsers import MultiPartParser
 from starlette.middleware.sessions import SessionMiddleware
 
-# Allow uploads up to 4 GB (must be set before app startup)
-MultiPartParser.spool_max_size = 1024 * 1024 * 4096
-
 from auth.oidc import RefreshToken, oauth, verify_token, verify_user
 from db.analytics import log_page_view
 from db.onboarding_attributes import seed_default_attributes
@@ -65,6 +62,9 @@ from routers.webauthn import router as webauthn_router
 
 from utils.log import get_logger
 from utils.settings import get_settings
+
+# Allow uploads up to 4 GB (must be set before app startup)
+MultiPartParser.spool_max_size = 1024 * 1024 * 4096
 
 settings = get_settings()
 log = get_logger()
@@ -319,7 +319,9 @@ async def auth(request: Request):
         )
         log.info(f"About to evaluate rules for user {user.get('user_id', '')}.")
         actions = await evaluate_rules(decoded_jwt, user)
-        log.info(f"Rule evaluation result for user {user.get('user_id', '')}: {actions}")
+        log.info(
+            f"Rule evaluation result for user {user.get('user_id', '')}: {actions}"
+        )
         if actions:
             await apply_rule_actions(actions, user)
 
