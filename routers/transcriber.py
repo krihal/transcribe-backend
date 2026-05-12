@@ -42,7 +42,7 @@ from utils.crypto import (
     deserialize_private_key_from_pem,
     encrypt_string,
     decrypt_string,
-    encrypt_data_to_file,
+    encrypt_stream_to_file,
 )
 from utils.log import get_logger
 from utils.validators import TranscriptionStatusPut, TranscriptionResultPut
@@ -168,12 +168,10 @@ async def transcribe_file(
         if not file_path.exists():
             file_path.mkdir(parents=True, exist_ok=True)
 
-        file_bytes = await file.read()
-
-        encrypt_data_to_file(
+        await encrypt_stream_to_file(
             public_key,
-            file_bytes,
-            dest_path,
+            file,
+            str(dest_path),
             chunk_size=settings.CRYPTO_CHUNK_SIZE,
         )
 
