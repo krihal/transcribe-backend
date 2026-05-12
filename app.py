@@ -63,8 +63,10 @@ from routers.webauthn import router as webauthn_router
 from utils.log import get_logger
 from utils.settings import get_settings
 
-# Allow uploads up to 4 GB (must be set before app startup)
-MultiPartParser.spool_max_size = 1024 * 1024 * 4096
+# In-memory spool threshold for multipart bodies. Above this, Starlette
+# spills the upload to a temp file on disk. Higher = faster (no disk hop)
+# but more RAM per concurrent upload. Worst-case RAM = workers × this value.
+MultiPartParser.spool_max_size = 1024 * 1024 * 1024
 
 settings = get_settings()
 log = get_logger()
