@@ -130,7 +130,12 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-app.add_middleware(SessionMiddleware, settings.API_SECRET_KEY, https_only=False)
+app.add_middleware(
+    SessionMiddleware,
+    settings.API_SECRET_KEY,
+    https_only=not settings.API_DEBUG,
+    same_site="lax",
+)
 
 
 @app.on_event("startup")
