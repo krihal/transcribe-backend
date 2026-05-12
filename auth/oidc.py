@@ -17,7 +17,7 @@
 
 from authlib.integrations.starlette_client import OAuth
 from authlib.jose import jwt
-from datetime import datetime
+from authlib.jose.errors import JoseError
 from db.user import user_create
 from fastapi import HTTPException
 from fastapi import Request
@@ -121,8 +121,8 @@ async def verify_token(id_token: str) -> dict:
     """
     Verify the given ID token.
     1. Fetch the JWKS from the OIDC provider.
-    2. Decode and verify the JWT using the JWKS.
-    3. Check the issuer and expiration time.
+    2. Decode and verify the JWT signature using the JWKS.
+    3. Validate issuer, audience, expiration, and not-before claims.
 
     Parameters:
         id_token (str): The ID token to verify.
@@ -131,25 +131,34 @@ async def verify_token(id_token: str) -> dict:
         dict: The decoded JWT payload.
     """
 
-    # Fetch the JWKS from the OIDC provider
     jwks = await oauth.auth0.fetch_jwk_set()
+    metadata = await oauth.auth0.load_server_metadata()
 
-    # Decode and verify the JWT
+    claims_options = {
+        "iss": {"essential": True, "value": metadata["issuer"]},
+        "exp": {"essential": True},
+    }
+
     try:
-        decoded_jwt = jwt.decode(s=id_token, key=jwks)
+        decoded_jwt = jwt.decode(
+            s=id_token,
+            key=jwks,
+            claims_options=claims_options,
+        )
+        decoded_jwt.validate(leeway=30)
+    except JoseError as e:
+        raise UnauthenticatedError(f"Invalid token: {e}") from e
     except Exception as e:
         raise UnauthenticatedError("Invalid token.") from e
 
-    # Validate issuer and expiration
-    metadata = await oauth.auth0.load_server_metadata()
-
-    # Validate issuer
-    if decoded_jwt["iss"] != metadata["issuer"]:
-        raise UnauthenticatedError("Invalid issuer.")
-
-    # Check if the token is expired
-    if datetime.fromtimestamp(decoded_jwt["exp"]) < datetime.now():
-        raise UnauthenticatedError("Token expired.")
+    client_id = settings.OIDC_CLIENT_ID
+    aud = decoded_jwt.get("aud")
+    azp = decoded_jwt.get("azp")
+    aud_values = aud if isinstance(aud, list) else [aud] if aud else []
+    if client_id not in aud_values and azp != client_id:
+        raise UnauthenticatedError(
+            f"Token not intended for this client: aud={aud!r} azp={azp!r}"
+        )
 
     return decoded_jwt
 
