@@ -26,89 +26,106 @@ from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlmodel import Field, Relationship, SQLModel
 
 #
-#                                +-------------------+
-#                                |       Model       |
-#                                |-------------------|
-#                                | id (PK)           |
-#                                | name (unique)     |
-#                                | description       |
-#                                | active (bool)     |
-#                                +---------+---------+
-#                                          ^
-#                                          |
-#                                          |
-#                                +---------+---------+
-#                                |  GroupModelLink   |
-#                                |-------------------|
-#                                | group_id (FK->Grp)|
-#                                | model_id (FK->Mod)|
-#                                +---------+---------+
-#                                          ^
-#                                          |
-#                                          |
-# +--------------------------+     +-------+---------+     +----------------------+
-# |         Group            |     |   GroupUserLink |     |         User         |
-# |--------------------------|     |-----------------|     |----------------------|
-# | id (PK)                  |<--->| group_id (FK)   |<--->| id (PK)              |
-# | name                     |     | user_id (FK)    |     | user_id              |
-# | realm                    |     | role            |     | username             |
-# | description              |     | in_group (bool) |     | realm                |
-# | created_at               |     +-----------------+     | admin (bool)         |
-# | owner_user_id (FK->User) |                             | admin_domains        |
-# | quota_seconds            |                             | bofh (bool)          |
-# +---------+----------------+                             | transcribed_seconds  |
-#           ^                                              | last_login           |
-#           |                                              | active (bool)        |
-#           |                                              +---------+------------+
-#           |                                                      ^
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           +------------------------------------------------------+
-#           |
-#           |      (Users belong to groups via GroupUserLink;
-#           |       groups can be owned by a user)
-#           |
-#           v
-# +---------------------------+
-# |        JobResult          |
-# |---------------------------|
-# | id (PK)                   |
-# | job_id (UUID)             |
-# | user_id (FK->User.user_id)|
-# | result (JSON)             |
-# | result_srt                |
-# | external_id (UUID)        |
-# | created_at                |
-# +-----------^---------------+
-#             |
-#             |
-#             |
-# +-----------+---------------+
-# |            Job            |
-# |---------------------------|
-# | id (PK)                   |
-# | uuid (UUID)               |
-# | user_id (FK->User.user_id)|
-# | external_id               |
-# | external_user_id          |
-# | client_dn                 |
-# | status (Enum)             |
-# | job_type (Enum)           |
-# | created_at                |
-# | updated_at                |
-# | deletion_date             |
-# | language                  |
-# | model_type                |
-# | speakers                  |
-# | error                     |
-# | filename                  |
-# | output_format (Enum)      |
-# | transcribed_seconds       |
-# +---------------------------+
+#                              +---------------------------+
+#                              |           Model           |
+#                              |---------------------------|
+#                              | id (PK)                   |
+#                              | name (unique)             |
+#                              | description               |
+#                              | active (bool)             |
+#                              +-------------+-------------+
+#                                            ^
+#                                            |
+#                              +-------------+-------------+
+#                              |      GroupModelLink       |
+#                              |---------------------------|
+#                              | group_id (FK->Group.id)   |
+#                              | model_id (FK->Model.id)   |
+#                              +-------------+-------------+
+#                                            ^
+#                                            |
+# +--------------------------+    +----------+-----------+    +-----------------------------+
+# |          Group           |    |    GroupUserLink     |    |            User             |
+# |--------------------------|    |----------------------|    |-----------------------------|
+# | id (PK)                  |<-->| group_id (FK)        |<-->| id (PK)                     |
+# | name                     |    | user_id (FK)         |    | user_id (unique str)        |
+# | realm                    |    | role                 |    | username                    |
+# | description              |    | in_group (bool)      |    | realm                       |
+# | created_at               |    +----------------------+    | email                       |
+# | owner_user_id (->User)   |                                | admin (bool)                |
+# | quota_seconds            |                                | admin_domains               |
+# +------------+-------------+                                | bofh (bool)                 |
+#              ^                                              | active (bool)               |
+#              | assign_to_group                              | deleted (bool)              |
+#              |                                              | manually_activated          |
+# +------------+-------------+                                | manually_deactivated        |
+# |      AttributeRule       |                                | manually_set_notifications  |
+# |--------------------------|                                | notifications               |
+# | id (PK)                  |                                | transcribed_seconds         |
+# | name                     |                                | last_login                  |
+# | attribute_name           |                                | encryption_settings         |
+# | attribute_condition      |                                | private_key / public_key    |
+# | attribute_value          |                                | dark_mode (enum)            |
+# | enabled (bool)           |                                +--------------+--------------+
+# | activate / admin / deny  |                                               ^
+# | notify_job               |                  +----------------------------+
+# | notify_deletion          |                  |
+# | assign_to_group (->Grp)  |                  |
+# | realm / owner_domains    |                  |
+# +--------------------------+      +-----------+--------------+    +--------------------------+
+#                                   |           Job            |    |    NotificationsSent     |
+#                                   |--------------------------|    |--------------------------|
+#                                   | id (PK)                  |    | id (PK)                  |
+#                                   | uuid (UUID, unique)      |    | user_id (->User)         |
+#                                   | user_id (->User)         |    | notification_type        |
+#                                   | external_id              |    | uuid (e.g. Job.uuid)     |
+#                                   | external_user_id         |    | sent_at                  |
+#                                   | client_dn                |    +--------------------------+
+#                                   | status (enum)            |
+#                                   | job_type (enum)          |
+#                                   | output_format (enum)     |
+#                                   | language / model_type    |
+#                                   | speakers                 |
+#                                   | created_at / updated_at  |
+#                                   | deletion_date            |
+#                                   | filename / error         |
+#                                   | transcribed_seconds      |
+#                                   +-----------+--------------+
+#                                               ^
+#                                               | job_id = Job.uuid
+#                                               |
+#                                   +-----------+--------------+
+#                                   |        JobResult         |
+#                                   |--------------------------|
+#                                   | id (PK)                  |
+#                                   | job_id (->Job.uuid)      |
+#                                   | user_id (->User)         |
+#                                   | result (JSON)            |
+#                                   | result_srt               |
+#                                   | external_id              |
+#                                   | created_at               |
+#                                   +--------------------------+
+#
+# Standalone tables (no enforced FK):
+#
+# +--------------------------+  +--------------------------+  +--------------------------+
+# |        Customer          |  |       Announcement       |  |        PageView          |
+# |--------------------------|  |--------------------------|  |--------------------------|
+# | id (PK)                  |  | id (PK)                  |  | id (PK)                  |
+# | customer_abbr (unique)   |  | message                  |  | path                     |
+# | partner_id               |  | severity (enum)          |  | timestamp                |
+# | name                     |  | starts_at / ends_at      |  +--------------------------+
+# | contact_email            |  | enabled                  |
+# | support_contact_email    |  | created_at / created_by  |  +--------------------------+
+# | priceplan (enum)         |  +--------------------------+  |      WorkerHealth        |
+# | base_fee                 |                                |--------------------------|
+# | blocks_purchased         |  +--------------------------+  | id (PK)                  |
+# | realms (CSV -> User)     |  |   OnboardingAttribute    |  | worker_id                |
+# | notes / created_at       |  |--------------------------|  | load_avg / memory_usage  |
+# +--------------------------+  | id (PK)                  |  | gpu_usage (JSON)         |
+#                               | name (unique)            |  | created_at               |
+#                               | description / example    |  +--------------------------+
+#                               +--------------------------+
 
 
 class JobStatusEnum(str, Enum):
@@ -508,28 +525,42 @@ class Users(BaseModel):
     users: List[User]
 
 
-# Block diagram of the connection between users, groups, quota, models etc
+# Block diagram of the connection between users, groups, quota, models, rules
+# and billing.
 #
 # User <--> GroupUserLink <--> Group <--> GroupModelLink <--> Model
-#  ^                                                        ^
-#  |                                                        |
-#  +----------------- transcribed_seconds ------------------+
-#                                                           |
-#                           quota_seconds ------------------+
-#                           active (Model)                  |
-#                           admin (User)                    |
-#                           bofh (User)                     |
-#                                                           +------------------ owner_user_id (Group)
+#   ^                            ^
+#   | manual_* flags             | assign_to_group
+#   | notifications              |
+#   |                            |
+#   +-------- AttributeRule -----+
+#              (matches JWT/SAML claims, applies actions:
+#               activate, admin, deny, assign_to_group,
+#               notify_job, notify_deletion)
+#
+# Job.user_id          -> User.user_id
+# JobResult.job_id     -> Job.uuid
+# JobResult.user_id    -> User.user_id
+# NotificationsSent    -> User.user_id (+ uuid of e.g. Job)
+# Customer.realms      -> CSV loose link to User.realm / Group.realm
+# OnboardingAttribute  -> reference list for AttributeRule.attribute_name
 #
 # -----------------------------------------------------------
-# This design allows for:
-# - Users to belong to multiple groups
-# - Groups to have access to multiple models
-# - Each group can have a monthly quota in seconds
-# - Each user has a total of transcribed seconds
-# - Admin users can manage groups and users
-# - BOFH users can view statistics across all realms
+# Design allows:
+# - Users belong to multiple groups
+# - Groups have access to multiple models
+# - Each group has a monthly quota in seconds
+# - Each user tracks total transcribed seconds
+# - Admin users manage groups/users in their admin_domains
+# - BOFH users view statistics across all realms
 # - Each group has an owner or primary contact user
+# - AttributeRule auto-provisions users at login from JWT/SAML
+#   claims; manual_* flags on User block rule overwrite
+# - Customer groups realms for billing (fixed or variable plan,
+#   blocks_purchased for fixed plans)
+# - Announcement drives system-wide banner with severity/window
+# - WorkerHealth tracks GPU worker load / memory / GPU usage
+# - PageView captures anonymous action analytics
 # -----------------------------------------------------------
 
 
