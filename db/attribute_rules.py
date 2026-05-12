@@ -88,9 +88,7 @@ async def rule_get_all(realm: Optional[str | list[str]] = None) -> list[dict]:
     """
 
     async with get_async_session() as session:
-        result = await session.execute(
-            select(AttributeRule).order_by(AttributeRule.id)
-        )
+        result = await session.execute(select(AttributeRule).order_by(AttributeRule.id))
         rules = result.scalars().all()
         all_rules = [r.as_dict() for r in rules]
 
@@ -129,9 +127,7 @@ async def rule_update(
 
     async with get_async_session() as session:
         result = await session.execute(
-            select(AttributeRule)
-            .where(AttributeRule.id == rule_id)
-            .with_for_update()
+            select(AttributeRule).where(AttributeRule.id == rule_id).with_for_update()
         )
         rule = result.scalars().first()
         if not rule:
@@ -245,9 +241,7 @@ async def evaluate_rules(decoded_jwt: dict, user: dict) -> dict:
 
     # If the user was manually deactivated or activated, skip all auto-provisioning
     if user.get("manually_deactivated", False):
-        log.info(
-            f"Skipping rule evaluation for user {user_id}: manually deactivated."
-        )
+        log.info(f"Skipping rule evaluation for user {user_id}: manually deactivated.")
         return {}
 
     manually_activated = user.get("manually_activated", False)
@@ -287,13 +281,17 @@ async def evaluate_rules(decoded_jwt: dict, user: dict) -> dict:
             if rule.realm:
                 rule_realms = [r.strip() for r in rule.realm.split(",") if r.strip()]
                 if rule_realms and realm not in rule_realms:
-                    log.info(f"Rule '{rule.name}' skipped: realm mismatch ({realm} not in {rule_realms}).")
+                    log.info(
+                        f"Rule '{rule.name}' skipped: realm mismatch ({realm} not in {rule_realms})."
+                    )
                     continue
 
             claim_values = _get_claim_values(enriched_jwt, rule.attribute_name)
 
             if not claim_values:
-                log.info(f"Rule '{rule.name}' skipped: no claim values for '{rule.attribute_name}'.")
+                log.info(
+                    f"Rule '{rule.name}' skipped: no claim values for '{rule.attribute_name}'."
+                )
                 continue
 
             matched = any(
@@ -333,7 +331,11 @@ async def evaluate_rules(decoded_jwt: dict, user: dict) -> dict:
                     f"Ignoring group assignment rule '{rule.name}' for user {user_id}: manually activated."
                 )
 
-            if rule.notify_job and not manually_activated and not manually_set_notifications:
+            if (
+                rule.notify_job
+                and not manually_activated
+                and not manually_set_notifications
+            ):
                 actions["notify_job"] = True
                 rule_actions.append("enable job notifications")
             elif rule.notify_job and manually_activated:
@@ -345,7 +347,11 @@ async def evaluate_rules(decoded_jwt: dict, user: dict) -> dict:
                     f"Ignoring notify_job rule '{rule.name}' for user {user_id}: notifications manually set."
                 )
 
-            if rule.notify_deletion and not manually_activated and not manually_set_notifications:
+            if (
+                rule.notify_deletion
+                and not manually_activated
+                and not manually_set_notifications
+            ):
                 actions["notify_deletion"] = True
                 rule_actions.append("enable deletion notifications")
             elif rule.notify_deletion and manually_activated:
@@ -382,9 +388,7 @@ async def apply_rule_actions(actions: dict, user: dict) -> None:
     username = user.get("username", "")
 
     async with get_async_session() as session:
-        result = await session.execute(
-            select(User).where(User.user_id == user_id)
-        )
+        result = await session.execute(select(User).where(User.user_id == user_id))
         db_user = result.scalars().first()
         if not db_user:
             return
@@ -406,9 +410,7 @@ async def apply_rule_actions(actions: dict, user: dict) -> None:
     group_id = actions.get("group")
     if group_id:
         async with get_async_session() as session:
-            result = await session.execute(
-                select(User).where(User.user_id == user_id)
-            )
+            result = await session.execute(select(User).where(User.user_id == user_id))
             db_user_for_group = result.scalars().first()
 
             existing = None
@@ -441,9 +443,7 @@ async def apply_rule_actions(actions: dict, user: dict) -> None:
                 else:
                     await group_add_user(int(group_id), username)
             except (ValueError, TypeError):
-                log.warning(
-                    f"Could not assign user {user_id} to group {group_id}."
-                )
+                log.warning(f"Could not assign user {user_id} to group {group_id}.")
 
     # Notification preferences
     notify_types = []
@@ -459,9 +459,7 @@ async def apply_rule_actions(actions: dict, user: dict) -> None:
             )
             db_user_notify = result.scalars().first()
             if db_user_notify:
-                current = set(
-                    (db_user_notify.notifications or "").split(",")
-                )
+                current = set((db_user_notify.notifications or "").split(","))
                 current.discard("")
                 for nt in notify_types:
                     if nt not in current:
@@ -484,7 +482,9 @@ def _user_to_pseudo_jwt(user: User) -> dict:
     }
 
 
-async def test_rules(rule_ids: list[int], realm: str | list[str] | None = None) -> list[dict]:
+async def test_rules(
+    rule_ids: list[int], realm: str | list[str] | None = None
+) -> list[dict]:
     """
     Test which users would be matched by the given rules.
 
@@ -534,7 +534,9 @@ async def test_rules(rule_ids: list[int], realm: str | list[str] | None = None) 
 
             for rule in rules:
                 if rule.realm:
-                    rule_realms = [r.strip() for r in rule.realm.split(",") if r.strip()]
+                    rule_realms = [
+                        r.strip() for r in rule.realm.split(",") if r.strip()
+                    ]
                     if rule_realms and user.realm not in rule_realms:
                         continue
 
@@ -556,19 +558,23 @@ async def test_rules(rule_ids: list[int], realm: str | list[str] | None = None) 
                     if rule.admin:
                         actions.append("Grant admin")
                     if rule.assign_to_group:
-                        gname = group_names.get(rule.assign_to_group, rule.assign_to_group)
+                        gname = group_names.get(
+                            rule.assign_to_group, rule.assign_to_group
+                        )
                         actions.append(f"Group: {gname}")
                     rule_info["actions"] = actions
                     matched_rules.append(rule_info)
 
             if matched_rules:
-                results.append({
-                    "username": user.username,
-                    "email": user.email or "",
-                    "realm": user.realm,
-                    "active": user.active,
-                    "admin": user.admin,
-                    "matched_rules": matched_rules,
-                })
+                results.append(
+                    {
+                        "username": user.username,
+                        "email": user.email or "",
+                        "realm": user.realm,
+                        "active": user.active,
+                        "admin": user.admin,
+                        "matched_rules": matched_rules,
+                    }
+                )
 
         return results
