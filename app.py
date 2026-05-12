@@ -314,11 +314,6 @@ async def auth(request: Request):
     if not userinfo:
         raise ValueError("Failed to get userinfo from token")
 
-    request.session["id_token"] = token["access_token"]
-
-    if "refresh_token" in token:
-        request.session["refresh_token"] = token["refresh_token"]
-
     # Evaluate attribute-based onboarding rules at login time
     try:
         decoded_jwt = await verify_token(id_token=token["access_token"])
