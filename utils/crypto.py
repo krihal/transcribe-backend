@@ -15,13 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import os
 import struct
+
+import aiofiles
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional, Protocol, Tuple
+
+
+class AsyncReader(Protocol):
+    async def read(self, size: int) -> bytes: ...
 
 
 def generate_rsa_keypair(
@@ -258,6 +265,59 @@ def encrypt_data_to_file(
             encoded = encrypted_text.encode("utf-8")
             fout.write(struct.pack(">I", len(encoded)))
             fout.write(encoded)
+
+
+async def encrypt_stream_to_file(
+    public_key: rsa.RSAPublicKey,
+    reader: AsyncReader,
+    output_filepath: str,
+    chunk_size: int = 1024 * 1024,
+) -> int:
+    """
+    Stream-encrypt data from an async reader to a file. Uses bounded memory:
+    one chunk at a time, never holding the whole input. Produces a file in the
+    same format as encrypt_data_to_file() so decrypt_data_from_file() works
+    unchanged.
+
+    The original size header is written as a placeholder up front, then
+    overwritten with the true total after streaming completes.
+
+    Parameters:
+        public_key (rsa.RSAPublicKey): The RSA public key for the AES key wrap.
+        reader (AsyncReader): Any object with `async read(size) -> bytes`.
+        output_filepath (str): Destination path for the encrypted file.
+        chunk_size (int): Plaintext chunk size in bytes (default 1 MB).
+
+    Returns:
+        int: total plaintext bytes encrypted.
+    """
+
+    aes_key = AESGCM.generate_key(bit_length=256)
+    aesgcm = AESGCM(aes_key)
+    total = 0
+
+    async with aiofiles.open(output_filepath, "wb") as fout:
+        # Placeholder for the u64 original-size header; rewritten at the end.
+        await fout.write(struct.pack(">Q", 0))
+
+        while True:
+            chunk = await reader.read(chunk_size)
+            if not chunk:
+                break
+
+            encrypted_text = await asyncio.to_thread(
+                encrypt_string, public_key, chunk.hex(), aes_key, aesgcm
+            )
+            encoded = encrypted_text.encode("utf-8")
+
+            await fout.write(struct.pack(">I", len(encoded)))
+            await fout.write(encoded)
+            total += len(chunk)
+
+        await fout.seek(0)
+        await fout.write(struct.pack(">Q", total))
+
+    return total
 
 
 def decrypt_data_from_file(
