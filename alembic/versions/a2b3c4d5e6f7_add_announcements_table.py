@@ -29,6 +29,7 @@ import sqlalchemy as sa
 
 from alembic import op
 from sqlalchemy import inspect
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -38,9 +39,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _ensure_severity_enum(bind: sa.engine.Connection) -> sa.Enum:
+def _ensure_severity_enum(bind: sa.engine.Connection) -> postgresql.ENUM:
     """Create the severity enum type if it doesn't already exist."""
-    severity_enum = sa.Enum(
+    severity_enum = postgresql.ENUM(
         "info",
         "maintenance",
         "major_incident",
