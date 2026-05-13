@@ -29,6 +29,7 @@ import sqlalchemy as sa
 
 from alembic import op
 from sqlalchemy import inspect
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -47,7 +48,25 @@ CONDITION_VALUES = (
     "REGEX_MATCH",
 )
 
-condition_enum = sa.Enum(*CONDITION_VALUES, name="attributeconditionenum", create_type=False)
+condition_enum = postgresql.ENUM(
+    *CONDITION_VALUES, name="attributeconditionenum", create_type=False
+)
+
+
+def _ensure_condition_enum(bind: sa.engine.Connection) -> postgresql.ENUM:
+    """Create the attribute condition enum type if it doesn't already exist."""
+
+    if bind.dialect.name == "sqlite":
+        return condition_enum
+
+    result = bind.execute(
+        sa.text("SELECT 1 FROM pg_type WHERE typname = 'attributeconditionenum'")
+    )
+
+    if not result.scalar():
+        condition_enum.create(bind)
+
+    return condition_enum
 
 
 def upgrade() -> None:
@@ -57,7 +76,7 @@ def upgrade() -> None:
     inspector = inspect(engine)
 
     if "attribute_rules" not in inspector.get_table_names():
-        condition_enum.create(engine, checkfirst=True)
+        _ensure_condition_enum(engine)
 
         op.create_table(
             "attribute_rules",
