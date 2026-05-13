@@ -28,7 +28,6 @@ import sqlalchemy as sa
 
 from alembic import op
 from sqlalchemy import inspect
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "0c309fb6c471"
@@ -43,20 +42,37 @@ def upgrade() -> None:
     engine = op.get_bind()
     inspector = inspect(engine)
 
-    if not inspector.get_columns("notifications_sent"):
+    if "notifications_sent" not in inspector.get_table_names():
         op.create_table(
             "notifications_sent",
-            sa.Column("uuid", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column(
+                "id",
+                sa.Integer(),
+                primary_key=True,
+                autoincrement=True,
+                nullable=False,
+            ),
             sa.Column("user_id", sa.VARCHAR(), nullable=True),
+            sa.Column("notification_type", sa.VARCHAR(), nullable=True),
             sa.Column(
                 "sent_at",
                 sa.TIMESTAMP(),
                 server_default=sa.text("now()"),
                 nullable=True,
             ),
-            sa.PrimaryKeyConstraint("user_id", name="ix_notifications_sent_user_id"),
-            sa.Index(op.f("ix_notifications_sent_uuid"), "uuid", unique=True),
-            sa.Index(op.f("ix_notifications_sent_user_id"), "user_id", unique=False),
+            sa.Column("uuid", sa.VARCHAR(), nullable=True),
+        )
+        op.create_index(
+            op.f("ix_notifications_sent_user_id"),
+            "notifications_sent",
+            ["user_id"],
+            unique=False,
+        )
+        op.create_index(
+            op.f("ix_notifications_sent_uuid"),
+            "notifications_sent",
+            ["uuid"],
+            unique=False,
         )
 
 
@@ -66,7 +82,7 @@ def downgrade() -> None:
     engine = op.get_bind()
     inspector = inspect(engine)
 
-    if inspector.get_columns("notifications_sent"):
+    if "notifications_sent" in inspector.get_table_names():
         op.drop_index(
             op.f("ix_notifications_sent_user_id"), table_name="notifications_sent"
         )
