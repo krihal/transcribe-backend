@@ -288,10 +288,10 @@ async def create_api_user() -> None:
 
     user = await user_get(username="api_user")
 
-    try:
-        await user_get_private_key(user["user_id"])
-        await user_get_public_key(user["user_id"])
-    except Exception:
+    private_key = await user_get_private_key(user["user_id"])
+    public_key = await user_get_public_key(user["user_id"])
+
+    if private_key is None or public_key is None:
         await user_update(
             user["user_id"],
             encryption_password=settings.API_PRIVATE_KEY_PASSWORD,
