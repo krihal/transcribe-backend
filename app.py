@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi_utils.tasks import repeat_every
+from starlette.formparsers import MultiPartParser
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth.oidc import RefreshToken, oauth, verify_token, verify_user
@@ -60,6 +61,11 @@ from routers.videostream import router as videostream_router
 
 from utils.log import get_logger
 from utils.settings import get_settings
+
+# In-memory spool threshold for multipart bodies. Above this, Starlette
+# spills the upload to a temp file on disk. Higher = faster (no disk hop)
+# but more RAM per concurrent upload. Worst-case RAM = workers × this value.
+MultiPartParser.spool_max_size = 1024 * 1024 * 1024
 
 settings = get_settings()
 log = get_logger()
@@ -105,15 +111,32 @@ app = FastAPI(
     ],
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+cors_origins = sorted(
+    {
+        origin
+        for origin in (
+            settings.OIDC_FRONTEND_URI,
+            settings.BRANDING_FRONTEND_URL,
+            settings.BRANDING_ADMIN_URL,
+        )
+        if origin
+    }
 )
 
-app.add_middleware(SessionMiddleware, settings.API_SECRET_KEY, https_only=False)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+app.add_middleware(
+    SessionMiddleware,
+    settings.API_SECRET_KEY,
+    https_only=not settings.API_DEBUG,
+    same_site="lax",
+)
 
 
 @app.on_event("startup")
@@ -265,10 +288,10 @@ async def create_api_user() -> None:
 
     user = await user_get(username="api_user")
 
-    try:
-        await user_get_private_key(user["user_id"])
-        await user_get_public_key(user["user_id"])
-    except Exception:
+    private_key = await user_get_private_key(user["user_id"])
+    public_key = await user_get_public_key(user["user_id"])
+
+    if private_key is None or public_key is None:
         await user_update(
             user["user_id"],
             encryption_password=settings.API_PRIVATE_KEY_PASSWORD,
@@ -293,11 +316,6 @@ async def auth(request: Request):
     if not userinfo:
         raise ValueError("Failed to get userinfo from token")
 
-    request.session["id_token"] = token["access_token"]
-
-    if "refresh_token" in token:
-        request.session["refresh_token"] = token["refresh_token"]
-
     # Evaluate attribute-based onboarding rules at login time
     try:
         decoded_jwt = await verify_token(id_token=token["access_token"])
@@ -313,7 +331,9 @@ async def auth(request: Request):
         )
         log.info(f"About to evaluate rules for user {user.get('user_id', '')}.")
         actions = await evaluate_rules(decoded_jwt, user)
-        log.info(f"Rule evaluation result for user {user.get('user_id', '')}: {actions}")
+        log.info(
+            f"Rule evaluation result for user {user.get('user_id', '')}: {actions}"
+        )
         if actions:
             await apply_rule_actions(actions, user)
 

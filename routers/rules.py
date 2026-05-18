@@ -82,7 +82,7 @@ def _rule_realm_overlaps(rule_realm: str | None, allowed: list[str]) -> bool:
     """
 
     if not rule_realm:
-        return True
+        return False
 
     rule_realms = {r.strip() for r in rule_realm.split(",") if r.strip()}
 
@@ -144,6 +144,8 @@ async def create_rule(
         admin=item.admin,
         deny=item.deny,
         assign_to_group=item.assign_to_group,
+        notify_job=item.notify_job,
+        notify_deletion=item.notify_deletion,
         owner_domains=item.owner_domains,
         enabled=item.enabled,
         user_id=admin_user["user_id"],
@@ -227,6 +229,8 @@ async def update_rule_endpoint(
         admin=item.admin,
         deny=item.deny,
         assign_to_group=item.assign_to_group,
+        notify_job=item.notify_job,
+        notify_deletion=item.notify_deletion,
         owner_domains=item.owner_domains,
         enabled=item.enabled,
         user_id=admin_user["user_id"],

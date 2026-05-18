@@ -15,100 +15,117 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel
-from sqlalchemy import Index
+from sqlalchemy import Column, Index
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlmodel import Field, Relationship, SQLModel
 
 #
-#                                +-------------------+
-#                                |       Model       |
-#                                |-------------------|
-#                                | id (PK)           |
-#                                | name (unique)     |
-#                                | description       |
-#                                | active (bool)     |
-#                                +---------+---------+
-#                                          ^
-#                                          |
-#                                          |
-#                                +---------+---------+
-#                                |  GroupModelLink   |
-#                                |-------------------|
-#                                | group_id (FK->Grp)|
-#                                | model_id (FK->Mod)|
-#                                +---------+---------+
-#                                          ^
-#                                          |
-#                                          |
-# +--------------------------+     +-------+---------+     +----------------------+
-# |         Group            |     |   GroupUserLink |     |         User         |
-# |--------------------------|     |-----------------|     |----------------------|
-# | id (PK)                  |<--->| group_id (FK)   |<--->| id (PK)              |
-# | name                     |     | user_id (FK)    |     | user_id              |
-# | realm                    |     | role            |     | username             |
-# | description              |     | in_group (bool) |     | realm                |
-# | created_at               |     +-----------------+     | admin (bool)         |
-# | owner_user_id (FK->User) |                             | admin_domains        |
-# | quota_seconds            |                             | bofh (bool)          |
-# +---------+----------------+                             | transcribed_seconds  |
-#           ^                                              | last_login           |
-#           |                                              | active (bool)        |
-#           |                                              +---------+------------+
-#           |                                                      ^
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           |                                                      |
-#           +------------------------------------------------------+
-#           |
-#           |      (Users belong to groups via GroupUserLink;
-#           |       groups can be owned by a user)
-#           |
-#           v
-# +---------------------------+
-# |        JobResult          |
-# |---------------------------|
-# | id (PK)                   |
-# | job_id (UUID)             |
-# | user_id (FK->User.user_id)|
-# | result (JSON)             |
-# | result_srt                |
-# | external_id (UUID)        |
-# | created_at                |
-# +-----------^---------------+
-#             |
-#             |
-#             |
-# +-----------+---------------+
-# |            Job            |
-# |---------------------------|
-# | id (PK)                   |
-# | uuid (UUID)               |
-# | user_id (FK->User.user_id)|
-# | external_id               |
-# | external_user_id          |
-# | client_dn                 |
-# | status (Enum)             |
-# | job_type (Enum)           |
-# | created_at                |
-# | updated_at                |
-# | deletion_date             |
-# | language                  |
-# | model_type                |
-# | speakers                  |
-# | error                     |
-# | filename                  |
-# | output_format (Enum)      |
-# | transcribed_seconds       |
-# +---------------------------+
+#                              +---------------------------+
+#                              |           Model           |
+#                              |---------------------------|
+#                              | id (PK)                   |
+#                              | name (unique)             |
+#                              | description               |
+#                              | active (bool)             |
+#                              +-------------+-------------+
+#                                            ^
+#                                            |
+#                              +-------------+-------------+
+#                              |      GroupModelLink       |
+#                              |---------------------------|
+#                              | group_id (FK->Group.id)   |
+#                              | model_id (FK->Model.id)   |
+#                              +-------------+-------------+
+#                                            ^
+#                                            |
+# +--------------------------+    +----------+-----------+    +-----------------------------+
+# |          Group           |    |    GroupUserLink     |    |            User             |
+# |--------------------------|    |----------------------|    |-----------------------------|
+# | id (PK)                  |<-->| group_id (FK)        |<-->| id (PK)                     |
+# | name                     |    | user_id (FK)         |    | user_id (unique str)        |
+# | realm                    |    | role                 |    | username                    |
+# | description              |    | in_group (bool)      |    | realm                       |
+# | created_at               |    +----------------------+    | email                       |
+# | owner_user_id (->User)   |                                | admin (bool)                |
+# | quota_seconds            |                                | admin_domains               |
+# +------------+-------------+                                | bofh (bool)                 |
+#              ^                                              | active (bool)               |
+#              | assign_to_group                              | deleted (bool)              |
+#              |                                              | manually_activated          |
+# +------------+-------------+                                | manually_deactivated        |
+# |      AttributeRule       |                                | manually_set_notifications  |
+# |--------------------------|                                | notifications               |
+# | id (PK)                  |                                | transcribed_seconds         |
+# | name                     |                                | last_login                  |
+# | attribute_name           |                                | encryption_settings         |
+# | attribute_condition      |                                | private_key / public_key    |
+# | attribute_value          |                                | dark_mode (enum)            |
+# | enabled (bool)           |                                +--------------+--------------+
+# | activate / admin / deny  |                                               ^
+# | notify_job               |                  +----------------------------+
+# | notify_deletion          |                  |
+# | assign_to_group (->Grp)  |                  |
+# | realm / owner_domains    |                  |
+# +--------------------------+      +-----------+--------------+    +--------------------------+
+#                                   |           Job            |    |    NotificationsSent     |
+#                                   |--------------------------|    |--------------------------|
+#                                   | id (PK)                  |    | id (PK)                  |
+#                                   | uuid (UUID, unique)      |    | user_id (->User)         |
+#                                   | user_id (->User)         |    | notification_type        |
+#                                   | external_id              |    | uuid (e.g. Job.uuid)     |
+#                                   | external_user_id         |    | sent_at                  |
+#                                   | client_dn                |    +--------------------------+
+#                                   | status (enum)            |
+#                                   | job_type (enum)          |
+#                                   | output_format (enum)     |
+#                                   | language / model_type    |
+#                                   | speakers                 |
+#                                   | created_at / updated_at  |
+#                                   | deletion_date            |
+#                                   | filename / error         |
+#                                   | transcribed_seconds      |
+#                                   +-----------+--------------+
+#                                               ^
+#                                               | job_id = Job.uuid
+#                                               |
+#                                   +-----------+--------------+
+#                                   |        JobResult         |
+#                                   |--------------------------|
+#                                   | id (PK)                  |
+#                                   | job_id (->Job.uuid)      |
+#                                   | user_id (->User)         |
+#                                   | result (JSON)            |
+#                                   | result_srt               |
+#                                   | external_id              |
+#                                   | created_at               |
+#                                   +--------------------------+
+#
+# Standalone tables (no enforced FK):
+#
+# +--------------------------+  +--------------------------+  +--------------------------+
+# |        Customer          |  |       Announcement       |  |        PageView          |
+# |--------------------------|  |--------------------------|  |--------------------------|
+# | id (PK)                  |  | id (PK)                  |  | id (PK)                  |
+# | customer_abbr (unique)   |  | message                  |  | path                     |
+# | partner_id               |  | severity (enum)          |  | timestamp                |
+# | name                     |  | starts_at / ends_at      |  +--------------------------+
+# | contact_email            |  | enabled                  |
+# | support_contact_email    |  | created_at / created_by  |  +--------------------------+
+# | priceplan (enum)         |  +--------------------------+  |      WorkerHealth        |
+# | base_fee                 |                                |--------------------------|
+# | blocks_purchased         |  +--------------------------+  | id (PK)                  |
+# | realms (CSV -> User)     |  |   OnboardingAttribute    |  | worker_id                |
+# | notes / created_at       |  |--------------------------|  | load_avg / memory_usage  |
+# +--------------------------+  | id (PK)                  |  | gpu_usage (JSON)         |
+#                               | name (unique)            |  | created_at               |
+#                               | description / example    |  +--------------------------+
+#                               +--------------------------+
 
 
 class JobStatusEnum(str, Enum):
@@ -191,7 +208,7 @@ class JobResult(SQLModel, table=True):
         description="SRT formatted transcription result",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Creation timestamp",
     )
     external_id: str = Field(
@@ -271,16 +288,16 @@ class Job(SQLModel, table=True):
         description="Type of the job",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Creation timestamp",
     )
     updated_at: datetime = Field(
-        sa_column_kwargs={"onupdate": datetime.utcnow},
-        default_factory=datetime.utcnow,
+        sa_column_kwargs={"onupdate": lambda: datetime.now(UTC).replace(tzinfo=None)},
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Last updated timestamp",
     )
     deletion_date: datetime = Field(
-        default_factory=lambda: datetime.utcnow() + timedelta(days=7),
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7),
         description="Date when the job will be deleted",
     )
     language: str = Field(default="Swedish", description="Language used for the job")
@@ -357,6 +374,16 @@ class GroupUserLink(SQLModel, table=True):
     )
 
 
+class DarkModeEnum(str, Enum):
+    """
+    Enum representing the user's theme preference.
+    """
+
+    DARK = "dark"
+    LIGHT = "light"
+    AUTO = "auto"
+
+
 class User(SQLModel, table=True):
     """
     Model representing a user in the system.
@@ -397,7 +424,7 @@ class User(SQLModel, table=True):
         description="Transcribed seconds",
     )
     last_login: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Last login timestamp",
     )
     active: bool = Field(
@@ -439,6 +466,25 @@ class User(SQLModel, table=True):
         default=False,
         description="Indicates if the user was manually activated by an admin, preventing rules from deactivating",
     )
+    manually_set_notifications: bool = Field(
+        default=False,
+        description="Indicates if the user manually changed their notification preferences, preventing rules from re-applying notification settings",
+    )
+    dark_mode: DarkModeEnum = Field(
+        default=DarkModeEnum.AUTO,
+        sa_column=Column(
+            "dark_mode",
+            SQLAlchemyEnum(
+                DarkModeEnum,
+                name="darkmodeenum",
+                values_callable=lambda x: [e.value for e in x],
+                create_type=False,
+            ),
+            nullable=False,
+            server_default="auto",
+        ),
+        description="User's theme preference: dark, light, or auto",
+    )
 
     def as_dict(self) -> dict:
         """
@@ -459,6 +505,7 @@ class User(SQLModel, table=True):
             "deleted": self.deleted,
             "manually_activated": self.manually_activated,
             "manually_deactivated": self.manually_deactivated,
+            "manually_set_notifications": self.manually_set_notifications,
             "notifications": self.notifications,
             "private_key": self.private_key,
             "public_key": self.public_key,
@@ -466,6 +513,7 @@ class User(SQLModel, table=True):
             "transcribed_seconds": self.transcribed_seconds,
             "user_id": self.user_id,
             "username": self.username,
+            "dark_mode": self.dark_mode,
         }
 
 
@@ -477,28 +525,42 @@ class Users(BaseModel):
     users: List[User]
 
 
-# Block diagram of the connection between users, groups, quota, models etc
+# Block diagram of the connection between users, groups, quota, models, rules
+# and billing.
 #
 # User <--> GroupUserLink <--> Group <--> GroupModelLink <--> Model
-#  ^                                                        ^
-#  |                                                        |
-#  +----------------- transcribed_seconds ------------------+
-#                                                           |
-#                           quota_seconds ------------------+
-#                           active (Model)                  |
-#                           admin (User)                    |
-#                           bofh (User)                     |
-#                                                           +------------------ owner_user_id (Group)
+#   ^                            ^
+#   | manual_* flags             | assign_to_group
+#   | notifications              |
+#   |                            |
+#   +-------- AttributeRule -----+
+#              (matches JWT/SAML claims, applies actions:
+#               activate, admin, deny, assign_to_group,
+#               notify_job, notify_deletion)
+#
+# Job.user_id          -> User.user_id
+# JobResult.job_id     -> Job.uuid
+# JobResult.user_id    -> User.user_id
+# NotificationsSent    -> User.user_id (+ uuid of e.g. Job)
+# Customer.realms      -> CSV loose link to User.realm / Group.realm
+# OnboardingAttribute  -> reference list for AttributeRule.attribute_name
 #
 # -----------------------------------------------------------
-# This design allows for:
-# - Users to belong to multiple groups
-# - Groups to have access to multiple models
-# - Each group can have a monthly quota in seconds
-# - Each user has a total of transcribed seconds
-# - Admin users can manage groups and users
-# - BOFH users can view statistics across all realms
+# Design allows:
+# - Users belong to multiple groups
+# - Groups have access to multiple models
+# - Each group has a monthly quota in seconds
+# - Each user tracks total transcribed seconds
+# - Admin users manage groups/users in their admin_domains
+# - BOFH users view statistics across all realms
 # - Each group has an owner or primary contact user
+# - AttributeRule auto-provisions users at login from JWT/SAML
+#   claims; manual_* flags on User block rule overwrite
+# - Customer groups realms for billing (fixed or variable plan,
+#   blocks_purchased for fixed plans)
+# - Announcement drives system-wide banner with severity/window
+# - WorkerHealth tracks GPU worker load / memory / GPU usage
+# - PageView captures anonymous action analytics
 # -----------------------------------------------------------
 
 
@@ -637,7 +699,7 @@ class Customer(SQLModel, table=True):
         description="Additional notes about the customer",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Creation timestamp",
     )
     blocks_purchased: Optional[int] = Field(
@@ -689,7 +751,7 @@ class NotificationsSent(SQLModel, table=True):
         description="Type of notification sent",
     )
     sent_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Timestamp when the notification was sent",
     )
     uuid: str = Field(
@@ -728,7 +790,7 @@ class PageView(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True, description="Primary key")
     path: str = Field(index=True, description="Page path that was visited")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         index=True,
         description="Timestamp of the page view",
     )
@@ -767,7 +829,7 @@ class AttributeRule(SQLModel, table=True):
     )
     attribute_value: str = Field(description="Value to compare against")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp"
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None), description="Creation timestamp"
     )
     enabled: bool = Field(
         default=True, description="Whether this rule is currently active"
@@ -789,6 +851,14 @@ class AttributeRule(SQLModel, table=True):
     assign_to_group: Optional[str] = Field(
         default=None,
         description="Group ID to assign matching users to",
+    )
+    notify_job: bool = Field(
+        default=False,
+        description="Enable transcription completed notifications for matching users",
+    )
+    notify_deletion: bool = Field(
+        default=False,
+        description="Enable upcoming file deletion notifications for matching users",
     )
     # Scope
     realm: Optional[str] = Field(
@@ -814,6 +884,8 @@ class AttributeRule(SQLModel, table=True):
             "admin": self.admin,
             "deny": self.deny,
             "assign_to_group": self.assign_to_group,
+            "notify_job": self.notify_job,
+            "notify_deletion": self.notify_deletion,
             "realm": self.realm,
             "owner_domains": self.owner_domains,
         }
@@ -881,7 +953,7 @@ class Announcement(SQLModel, table=True):
         description="Whether this announcement is currently active",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Creation timestamp",
     )
     created_by: Optional[str] = Field(
@@ -915,6 +987,6 @@ class WorkerHealth(SQLModel, table=True):
     memory_usage: float = Field(default=0, description="Memory usage")
     gpu_usage: Optional[str] = Field(default=None, description="GPU usage as JSON")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Timestamp when the health entry was recorded",
     )
