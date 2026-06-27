@@ -18,6 +18,8 @@
 import hashlib
 import json
 
+from urllib.parse import urlparse
+
 import webauthn
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
@@ -34,7 +36,7 @@ from db.webauthn import (
     webauthn_credential_update_sign_count,
     webauthn_credentials_get,
 )
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -53,8 +55,24 @@ _PRF_SALT = hashlib.sha256(b"scribe-encryption-prf-v1").digest()
 _PRF_SALT_B64 = bytes_to_base64url(_PRF_SALT)
 
 # Short-lived in-memory challenge store keyed by user_id.
-# Challenges are consumed on complete, so there is at most one pending per user.
-_challenges: dict[str, bytes] = {}
+# Each entry stores the challenge bytes plus the rp_id and origin derived from the
+# request, so complete() uses the same values that begin() used.
+_challenges: dict[str, dict] = {}
+
+
+def _rp_id_and_origin_from_request(request: Request) -> tuple[str, str]:
+    """Derive rpId and expected origin from the request's Origin header.
+
+    Using the live request origin means the WebAuthn rpId always matches whatever
+    hostname the browser is actually at (localhost, 127.0.0.1, a real domain…)
+    without requiring environment-specific configuration.  Falls back to settings
+    when the header is absent (e.g. server-side calls or non-browser clients).
+    """
+    origin = request.headers.get("origin")
+    if origin:
+        hostname = urlparse(origin).hostname or settings.WEBAUTHN_RP_ID
+        return hostname, origin
+    return settings.WEBAUTHN_RP_ID, settings.WEBAUTHN_ORIGIN
 
 
 class WebAuthnRegisterCompleteRequest(BaseModel):
@@ -75,6 +93,7 @@ class WebAuthnAuthCompleteRequest(BaseModel):
 
 @router.post("/webauthn/register/begin")
 async def webauthn_register_begin(
+    request: Request,
     user: dict = Depends(get_current_user),
 ) -> JSONResponse:
     """
@@ -84,8 +103,10 @@ async def webauthn_register_begin(
     user_id = user["user_id"]
     username = user["username"]
 
+    rp_id, origin = _rp_id_and_origin_from_request(request)
+
     options = webauthn.generate_registration_options(
-        rp_id=settings.WEBAUTHN_RP_ID,
+        rp_id=rp_id,
         rp_name=settings.WEBAUTHN_RP_NAME,
         user_id=user_id.encode("utf-8")[:64],
         user_name=username,
@@ -96,7 +117,7 @@ async def webauthn_register_begin(
         ),
     )
 
-    _challenges[user_id] = options.challenge
+    _challenges[user_id] = {"challenge": options.challenge, "rp_id": rp_id, "origin": origin}
 
     options_dict = json.loads(webauthn.options_to_json(options))
 
@@ -123,8 +144,8 @@ async def webauthn_register_complete(
     """
     user_id = user["user_id"]
 
-    challenge = _challenges.pop(user_id, None)
-    if not challenge:
+    stored = _challenges.pop(user_id, None)
+    if not stored:
         raise HTTPException(status_code=400, detail="No pending registration challenge.")
 
     if not item.prf_output or len(item.prf_output) != 64:
@@ -146,9 +167,9 @@ async def webauthn_register_complete(
 
         verification = webauthn.verify_registration_response(
             credential=registration_credential,
-            expected_challenge=challenge,
-            expected_rp_id=settings.WEBAUTHN_RP_ID,
-            expected_origin=settings.WEBAUTHN_ORIGIN,
+            expected_challenge=stored["challenge"],
+            expected_rp_id=stored["rp_id"],
+            expected_origin=stored["origin"],
             require_user_verification=True,
         )
     except Exception as e:
@@ -179,6 +200,7 @@ async def webauthn_register_complete(
 
 @router.post("/webauthn/auth/begin")
 async def webauthn_auth_begin(
+    request: Request,
     user: dict = Depends(get_current_user),
 ) -> JSONResponse:
     """
@@ -186,6 +208,8 @@ async def webauthn_auth_begin(
     with the PRF extension and the user's registered credential IDs.
     """
     user_id = user["user_id"]
+
+    rp_id, origin = _rp_id_and_origin_from_request(request)
 
     credentials = await webauthn_credentials_get(user_id)
     if not credentials:
@@ -199,12 +223,12 @@ async def webauthn_auth_begin(
     ]
 
     options = webauthn.generate_authentication_options(
-        rp_id=settings.WEBAUTHN_RP_ID,
+        rp_id=rp_id,
         allow_credentials=allow_credentials,
         user_verification=UserVerificationRequirement.REQUIRED,
     )
 
-    _challenges[user_id] = options.challenge
+    _challenges[user_id] = {"challenge": options.challenge, "rp_id": rp_id, "origin": origin}
 
     options_dict = json.loads(webauthn.options_to_json(options))
     options_dict["extensions"] = {
@@ -229,8 +253,8 @@ async def webauthn_auth_complete(
     """
     user_id = user["user_id"]
 
-    challenge = _challenges.pop(user_id, None)
-    if not challenge:
+    stored = _challenges.pop(user_id, None)
+    if not stored:
         raise HTTPException(status_code=400, detail="No pending authentication challenge.")
 
     credential_record = await webauthn_credential_get_by_id(item.id)
@@ -252,9 +276,9 @@ async def webauthn_auth_complete(
 
         verification = webauthn.verify_authentication_response(
             credential=auth_credential,
-            expected_challenge=challenge,
-            expected_rp_id=settings.WEBAUTHN_RP_ID,
-            expected_origin=settings.WEBAUTHN_ORIGIN,
+            expected_challenge=stored["challenge"],
+            expected_rp_id=stored["rp_id"],
+            expected_origin=stored["origin"],
             credential_public_key=base64url_to_bytes(credential_record.public_key),
             credential_current_sign_count=credential_record.sign_count,
             require_user_verification=True,
