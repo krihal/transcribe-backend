@@ -938,6 +938,38 @@ class Announcement(SQLModel, table=True):
         }
 
 
+class WebAuthnCredential(SQLModel, table=True):
+    """
+    Stores FIDO2/WebAuthn credentials for passkey-based encryption key derivation.
+    The PRF extension output from these credentials is used as the encryption passphrase.
+    """
+
+    __tablename__ = "webauthn_credentials"
+    __table_args__ = (
+        Index("ix_webauthn_credentials_user_id", "user_id"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True, description="User ID (matches users.user_id)")
+    credential_id: str = Field(index=True, unique=True, description="Base64url-encoded credential ID")
+    public_key: str = Field(description="COSE public key, base64url-encoded")
+    sign_count: int = Field(default=0, description="Signature counter for replay protection")
+    name: Optional[str] = Field(default=None, description="User-assigned label for this key")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
+        description="Registration timestamp",
+    )
+
+    def as_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "credential_id": self.credential_id,
+            "name": self.name,
+            "created_at": str(self.created_at),
+        }
+
+
 class WorkerHealth(SQLModel, table=True):
     __tablename__ = "worker_health"
     __table_args__ = (

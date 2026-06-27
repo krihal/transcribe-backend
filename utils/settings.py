@@ -83,6 +83,11 @@ class Settings(BaseSettings):
     # Customer config
     CUSTOMER_MINUTES_PER_BLOCK: int = 4000
 
+    # WebAuthn configuration.
+    WEBAUTHN_RP_ID: str = "localhost"
+    WEBAUTHN_RP_NAME: str = "Sunet Scribe"
+    WEBAUTHN_ORIGIN: str = "http://localhost:8888"
+
     # Crypto configuration.
     CRYPTO_KEY_SIZE: int = 4096
     CRYPTO_CHUNK_SIZE: int = (

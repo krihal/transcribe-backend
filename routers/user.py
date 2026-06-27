@@ -21,6 +21,7 @@ from db.user import (
     user_get_private_key,
     user_update,
 )
+from db.webauthn import webauthn_credentials_get, webauthn_has_credentials
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -55,6 +56,7 @@ async def get_user_info(
 
     result = dict(user)
     result["announcements"] = await announcement_get_active()
+    result["has_webauthn"] = await webauthn_has_credentials(user["user_id"])
     return JSONResponse(content={"result": result})
 
 
@@ -132,5 +134,16 @@ async def set_user_info(
         await user_update(user["user_id"], dark_mode=item.dark_mode)
 
     return JSONResponse(content={"result": {"status": "OK"}})
+
+
+@router.get("/me/webauthn")
+async def get_webauthn_credentials(
+    user: dict = Depends(get_current_user),
+) -> JSONResponse:
+    """
+    List the user's registered passkeys (name and creation date only, no key material).
+    """
+    credentials = await webauthn_credentials_get(user["user_id"])
+    return JSONResponse(content={"result": credentials})
 
 

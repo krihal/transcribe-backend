@@ -559,6 +559,10 @@ async def user_update(
 
                 await job_remove(job.uuid)
 
+            # Remove any WebAuthn credentials so the user can re-register
+            from db.webauthn import webauthn_credentials_delete
+            await webauthn_credentials_delete(user.user_id)
+
         if email:
             log.info(f"Updating email for user {user.user_id} to {email}")
             user.email = email

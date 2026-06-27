@@ -61,6 +61,7 @@ from routers.rules import router as rules_router
 from routers.transcriber import router as transcriber_router
 from routers.user import router as user_router
 from routers.videostream import router as videostream_router
+from routers.webauthn import router as webauthn_router
 
 from utils.log import get_logger
 from utils.settings import get_settings
@@ -225,6 +226,7 @@ app.include_router(analytics_router, prefix=settings.API_PREFIX, tags=["admin"])
 app.include_router(announcements_router, prefix=settings.API_PREFIX, tags=["admin"])
 app.include_router(customers_router, prefix=settings.API_PREFIX, tags=["admin"])
 app.include_router(rules_router, prefix=settings.API_PREFIX, tags=["admin"])
+app.include_router(webauthn_router, prefix=settings.API_PREFIX, tags=["webauthn"])
 
 
 def custom_openapi():
