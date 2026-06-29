@@ -285,7 +285,7 @@ async def webauthn_auth_complete(
         )
     except Exception as e:
         log.warning(f"WebAuthn authentication verification failed for user {user_id}: {e}")
-        raise HTTPException(status_code=400, detail="Authentication verification failed.")
+        raise HTTPException(status_code=400, detail=str(e) if settings.API_DEBUG else "Authentication verification failed.")
 
     await webauthn_credential_update_sign_count(item.id, verification.new_sign_count)
 
