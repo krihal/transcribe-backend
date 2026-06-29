@@ -61,18 +61,32 @@ _challenges: dict[str, dict] = {}
 
 
 def _rp_id_and_origin_from_request(request: Request) -> tuple[str, str]:
-    """Derive rpId and expected origin from the request's Origin header.
+    """Derive rpId and expected origin from request headers.
 
-    Using the live request origin means the WebAuthn rpId always matches whatever
-    hostname the browser is actually at (localhost, 127.0.0.1, a real domain…)
-    without requiring environment-specific configuration.  Falls back to settings
-    when the header is absent (e.g. server-side calls or non-browser clients).
+    Checks headers in order:
+    1. Origin — present for cross-origin requests (e.g. UI on :8888, API on :8000).
+    2. X-Forwarded-Host + X-Forwarded-Proto — set by reverse proxies (Traefik, nginx).
+    3. Host + request scheme — present for all HTTP requests.
+    4. Static settings as last resort.
+
+    Same-origin requests (UI and API on the same host/port, typical in production
+    behind a reverse proxy) never include an Origin header, so steps 2–3 handle that.
+    WEBAUTHN_RP_ID must be the full hostname (e.g. "test.transcribe.sunet.se"),
+    not a short label — the browser rejects rpIds that aren't a suffix of the page origin.
     """
     origin = request.headers.get("origin")
     if origin:
         hostname = urlparse(origin).hostname or settings.WEBAUTHN_RP_ID
         return hostname, origin
-    return settings.WEBAUTHN_RP_ID, settings.WEBAUTHN_ORIGIN
+
+    # Same-origin request — no Origin header. Reconstruct from proxy/host headers.
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    if host:
+        scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+        hostname = host.split(":")[0]  # strip port if present
+        return hostname, f"{scheme}://{host}"
+
+    return settings.WEBAUTHN_RP_ID, settings.WEBAUTHN_ORIGIN.rstrip("/")
 
 
 class WebAuthnRegisterCompleteRequest(BaseModel):
