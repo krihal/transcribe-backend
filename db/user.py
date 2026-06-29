@@ -33,6 +33,7 @@ from db.models import (
     JobStatusEnum,
     JobType,
     User,
+    WebAuthnCredential,
 )
 from db.session import get_async_session
 from utils.crypto import (
@@ -560,9 +561,14 @@ async def user_update(
 
                 await job_remove(job.uuid)
 
-            # Remove any WebAuthn credentials so the user can re-register
-            from db.webauthn import webauthn_credentials_delete
-            await webauthn_credentials_delete(user.user_id)
+            # Remove any WebAuthn credentials so the user can re-register.
+            # Use the current session to avoid opening a second write connection
+            # (SQLite only allows one writer at a time — a second session deadlocks).
+            cred_result = await session.execute(
+                select(WebAuthnCredential).where(WebAuthnCredential.user_id == user.user_id)
+            )
+            for cred in cred_result.scalars().all():
+                await session.delete(cred)
 
         if email:
             log.info(f"Updating email for user {user.user_id} to {email}")
