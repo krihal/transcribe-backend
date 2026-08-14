@@ -300,6 +300,15 @@ async def put_transcription_result(
             await job_result_save(
                 job_id, user_id, result=encrypted_result, external_id=job["external_id"]
             )
+        case "words":
+            json_str = json.dumps(item.result)
+            encrypted_result = encrypt_string(public_key, json_str)
+            await job_result_save(
+                job_id,
+                user_id,
+                result_words=encrypted_result,
+                external_id=job["external_id"],
+            )
         case "mp4":
             pass
         case _:
