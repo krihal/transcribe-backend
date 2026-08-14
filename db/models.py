@@ -102,6 +102,7 @@ from sqlmodel import Field, Relationship, SQLModel
 #                                   | user_id (->User)         |
 #                                   | result (JSON)            |
 #                                   | result_srt               |
+#                                   | result_words (JSON)      |
 #                                   | external_id              |
 #                                   | created_at               |
 #                                   +--------------------------+
@@ -207,6 +208,13 @@ class JobResult(SQLModel, table=True):
         default=None,
         description="SRT formatted transcription result",
     )
+    result_words: Optional[str] = Field(
+        default=None,
+        description=(
+            "Per-word timings and confidence scores, encrypted JSON. "
+            "NULL for results produced before word timings existed."
+        ),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC).replace(tzinfo=None),
         description="Creation timestamp",
@@ -231,6 +239,7 @@ class JobResult(SQLModel, table=True):
             "user_id": self.user_id,
             "result": self.result,
             "result_srt": self.result_srt,
+            "result_words": self.result_words,
             "external_id": self.external_id,
         }
 

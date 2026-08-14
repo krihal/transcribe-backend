@@ -355,6 +355,12 @@ async def put_transcription_result(
                     user["user_id"],
                     result=encrypt_string(public_key, item.data),
                 )
+            case "words":
+                await job_result_save(
+                    job_id,
+                    user["user_id"],
+                    result_words=encrypt_string(public_key, item.data),
+                )
     except Exception as e:
         logger.error(f"Error saving transcription result for job {job_id}: {e}")
         return JSONResponse(content={"result": {"error": str(e)}}, status_code=500)
@@ -435,3 +441,61 @@ async def get_transcription_result(
         content={"result": content},
         media_type="text/plain",
     )
+
+
+@router.get("/transcriber/{job_id}/words")
+async def get_transcription_words(
+    request: Request,
+    job_id: str,
+    user: dict = Depends(get_current_user),
+) -> JSONResponse:
+    """
+    Get the per-word timings and confidence scores for a job.
+
+    Served separately from the transcription itself: the payload is several
+    times larger than the text, and only clients that use it pay for it.
+
+    Returns an empty result rather than 404 when the job predates word
+    timings, so callers can treat "no word data" as a normal outcome.
+
+    Parameters:
+        request (Request): The incoming HTTP request.
+        job_id (str): The ID of the job.
+        user (dict): The current user.
+
+    Returns:
+        JSONResponse: The word timing payload as a JSON string.
+    """
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    if not isinstance(data, dict):
+        data = {}
+
+    encryption_password = data.get("encryption_password", "")
+
+    if not (job_result := await job_result_get(user["user_id"], job_id)):
+        return JSONResponse(
+            content={"result": {"error": "Job result not found"}}, status_code=404
+        )
+
+    content = job_result.get("result_words") or ""
+
+    if not content:
+        return JSONResponse(content={"result": ""})
+
+    if encryption_password:
+        private_key = await user_get_private_key(user["user_id"])
+
+        try:
+            deserialized_private_key = deserialize_private_key_from_pem(
+                private_key, encryption_password
+            )
+            content = decrypt_string(deserialized_private_key, content)
+        except (ValueError, TypeError):
+            content = job_result.get("result_words") or ""
+
+    return JSONResponse(content={"result": content})

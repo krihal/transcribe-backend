@@ -84,6 +84,24 @@ Treat every change as a potential attack surface. Required checks for any PR:
 - Seeded on startup via `seed_default_attributes` (called from `app.py`).
 - Only BOFH can add/delete attributes.
 
+## Transcription results (`job_results`)
+
+Three independent columns, all encrypted with the owner's public key, all written by `job_result_save()` (each argument left unset leaves that column alone):
+
+- `result` — JSON transcription (diarized segments), uploaded with `format: "json"`
+- `result_srt` — SRT subtitles, uploaded with `format: "srt"`
+- `result_words` — per-word timings/confidence, uploaded with `format: "words"`
+
+`result_words` is nullable and never backfilled: rows written before it existed stay NULL and every other read path ignores it. It is served by its own endpoint (`GET /transcriber/{job_id}/words`) rather than being folded into the transcription, because it is several times larger than the text and only the editor needs it. The endpoint returns `{"result": ""}` — not 404 — when a job has no word data, so callers treat "no word data" as normal.
+
+Payload shape (produced by transcribe-worker `utils/words.py`, which is the authority):
+
+```json
+{"version": 1, "words": [{"t": "Hej", "s": 0.12, "e": 0.34, "c": 0.98}]}
+```
+
+Flat and time-ordered rather than nested per segment, so it survives the user re-splitting or merging captions. `c` is omitted when the worker ran with `WORD_CONFIDENCE=false`. The backend stores it opaquely — bump `version` in the worker if the shape changes, and treat an unknown version as absent.
+
 ## Migrations
 
 - Chained Alembic migrations under `alembic/versions/`.

@@ -602,9 +602,13 @@ async def job_result_save(
     result: Optional[str] = "",
     external_id: Optional[str] = None,
     result_path: Optional[str] = None,
+    result_words: Optional[str] = None,
 ) -> JobResult:
     """
     Save the transcription result for a job.
+
+    Each result format is written independently, so a caller that only has
+    one of them leaves the others untouched.
 
     Parameters:
         uuid (str): The UUID of the job.
@@ -613,6 +617,7 @@ async def job_result_save(
         result (str): The transcription result in JSON format.
         external_id (str): An external ID associated with the job.
         result_path (str): The path to the result file.
+        result_words (str): Per-word timings and confidence scores as JSON.
 
     Returns:
         dict: The saved job result as a dictionary.
@@ -641,6 +646,8 @@ async def job_result_save(
                 job_result.result = result
             if result_srt:
                 job_result.result_srt = result_srt
+            if result_words:
+                job_result.result_words = result_words
         else:
             job_result = JobResult(
                 job_id=uuid,
@@ -648,6 +655,7 @@ async def job_result_save(
                 external_id=external_id,
                 result=json.dumps(result) if result else None,
                 result_srt=result_srt if result_srt else None,
+                result_words=result_words if result_words else None,
                 result_path=result_path if result_path else None,
             )
 
