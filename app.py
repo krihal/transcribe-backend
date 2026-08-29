@@ -396,7 +396,6 @@ async def refresh(request: Request, refresh_token: RefreshToken):
     Returns:
         JSONResponse: The new access token.
     """
-
     data = {
         "client_id": settings.OIDC_CLIENT_ID,
         "client_secret": settings.OIDC_CLIENT_SECRET,
@@ -414,7 +413,16 @@ async def refresh(request: Request, refresh_token: RefreshToken):
     except Exception:
         return JSONResponse({"error": "Failed to refresh token"}, status_code=400)
 
-    return JSONResponse({"access_token": response.json()["access_token"]})
+    token_response = response.json()
+
+    payload = {
+        "access_token": token_response["access_token"],
+    }
+
+    if token_response.get("refresh_token"):
+        payload["refresh_token"] = token_response["refresh_token"]
+
+    return JSONResponse(payload)
 
 
 @app.get("/api/docs")
